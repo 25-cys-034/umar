@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>2D Game - UMAR</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background:#111;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    height:100vh;
+    font-family:Arial, sans-serif;
+    color:#fff;
+  }
+  #score { margin-bottom:10px; font-size:20px; }
+  canvas {
+    background:#222;
+    border:3px solid #0f0;
+    display:block;
+  }
+  #msg {
+    margin-top:10px;
+    font-size:16px;
+    color:#aaa;
+  }
+</style>
+</head>
+<body>
+  <div id="score">Score: 0</div>
+  <canvas id="game" width="480" height="320"></canvas>
+  <div id="msg">Press SPACE / UP or TAP to jump. Avoid the red blocks.</div>
+
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const scoreEl = document.getElementById('score');
+
+let player = { x:50, y:260, w:30, h:30, vy:0, jumping:false };
+const gravity = 0.9;
+const jumpForce = -14;
+const groundY = 260;
+
+let obstacles = [];
+let frame = 0;
+let score = 0;
+let gameOver = false;
+let speed = 5;
+
+function spawnObstacle() {
+  obstacles.push({ x: canvas.width, y: groundY, w: 25, h: 30 });
+}
+
+function jump() {
+  if (!player.jumping && !gameOver) {
+    player.vy = jumpForce;
+    player.jumping = true;
+  }
+  if (gameOver) restart();
+}
+
+function restart() {
+  obstacles = [];
+  frame = 0;
+  score = 0;
+  speed = 5;
+  gameOver = false;
+  player.y = groundY;
+  player.vy = 0;
+  player.jumping = false;
+}
+
+document.addEventListener('keydown', e => {
+  if (e.code === 'Space' || e.code === 'ArrowUp') jump();
+});
+canvas.addEventListener('mousedown', jump);
+canvas.addEventListener('touchstart', jump);
+
+function update() {
+  if (gameOver) return;
+
+  frame++;
+  if (frame % 90 === 0) spawnObstacle();
+  if (frame % 500 === 0) speed += 0.5;
+
+  player.vy += gravity;
+  player.y += player.vy;
+  if (player.y > groundY) {
+    player.y = groundY;
+    player.vy = 0;
+    player.jumping = false;
+  }
+
+  obstacles.forEach(o => o.x -= speed);
+  obstacles = obstacles.filter(o => o.x + o.w > 0);
+
+  obstacles.forEach(o => {
+    if (
+      player.x < o.x + o.w &&
+      player.x + player.w > o.x &&
+      player.y < o.y + o.h &&
+      player.y + player.h > o.y
+    ) {
+      gameOver = true;
+    }
+  });
+
+  score++;
+  scoreEl.textContent = "Score: " + Math.floor(score / 5);
+}
+
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // ground
+  ctx.fillStyle = '#0f0';
+  ctx.fillRect(0, groundY + player.h, canvas.width, 4);
+
+  // player
+  ctx.fillStyle = '#0af';
+  ctx.fillRect(player.x, player.y, player.w, player.h);
+
+  // obstacles
+  ctx.fillStyle = '#f33';
+  obstacles.forEach(o => ctx.fillRect(o.x, o.y, o.w, o.h));
+
+  if (gameOver) {
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#fff';
+    ctx.font = '28px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('GAME OVER', canvas.width/2, canvas.height/2 - 10);
+    ctx.font = '16px Arial';
+    ctx.fillText('Click / tap / press space to restart', canvas.width/2, canvas.height/2 + 20);
+  }
+}
+
+function loop() {
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+loop();
+</script>
+</body>
+</html>
