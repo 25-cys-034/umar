@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>2D GAME - UMAR</title>
+<title>TIC-TAC-TOE - UMAR</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
   body {
@@ -15,135 +15,175 @@
     font-family:Arial, sans-serif;
     color:#fff;
   }
-  #score { margin-bottom:10px; font-size:20px; }
+  #score { margin-bottom:15px; font-size:24px; font-weight:bold; }
   canvas {
     background:#222;
     border:3px solid #0f0;
     display:block;
+    cursor:pointer;
   }
   #msg {
-    margin-top:10px;
+    margin-top:15px;
     font-size:16px;
     color:#aaa;
   }
 </style>
 </head>
 <body>
-  <div id="score">Score: 0</div>
-  <canvas id="game" width="480" height="320"></canvas>
-  <div id="msg">Press SPACE / UP or TAP to jump. Avoid the red blocks.</div>
+  <div id="score">Turn: Player X</div>
+  <canvas id="game" width="300" height="300"></canvas>
+  <div id="msg">Click on any empty cell to place your move.</div>
 
 <script>
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 const scoreEl = document.getElementById('score');
 
-let player = { x:50, y:260, w:30, h:30, vy:0, jumping:false };
-const gravity = 0.9;
-const jumpForce = -14;
-const groundY = 260;
-
-let obstacles = [];
-let frame = 0;
-let score = 0;
+const cellSize = 100;
+let board = Array(9).fill(null);
+let currentPlayer = 'X';
 let gameOver = false;
-let speed = 5;
+let winner = null;
 
-function spawnObstacle() {
-  obstacles.push({ x: canvas.width, y: groundY, w: 25, h: 30 });
+const winningCombos = [
+  [0, 1, 2], [3, 4, 5], [6, 7, 8], // Rows
+  [0, 3, 6], [1, 4, 7], [2, 5, 8], // Columns
+  [0, 4, 8], [2, 4, 6]             // Diagonals
+];
+
+function checkWinner() {
+  for (let combo of winningCombos) {
+    const [a, b, c] = combo;
+    if (board[a] && board[a] === board[b] && board[a] === board[c]) {
+      return board[a];
+    }
+  }
+  if (board.every(cell => cell !== null)) {
+    return 'Draw';
+  }
+  return null;
 }
 
-function jump() {
-  if (!player.jumping && !gameOver) {
-    player.vy = jumpForce;
-    player.jumping = true;
+function handleInput(x, y) {
+  if (gameOver) {
+    restart();
+    return;
   }
-  if (gameOver) restart();
+
+  const col = Math.floor(x / cellSize);
+  const row = Math.floor(y / cellSize);
+  const index = row * 3 + col;
+
+  if (board[index] === null) {
+    board[index] = currentPlayer;
+    winner = checkWinner();
+
+    if (winner) {
+      gameOver = true;
+      if (winner === 'Draw') {
+        scoreEl.textContent = "It's a Draw!";
+      } else {
+        scoreEl.textContent = `Player ${winner} Wins!`;
+      }
+    } else {
+      currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
+      scoreEl.textContent = `Turn: Player ${currentPlayer}`;
+    }
+    draw();
+  }
 }
 
 function restart() {
-  obstacles = [];
-  frame = 0;
-  score = 0;
-  speed = 5;
+  board = Array(9).fill(null);
+  currentPlayer = 'X';
   gameOver = false;
-  player.y = groundY;
-  player.vy = 0;
-  player.jumping = false;
+  winner = null;
+  scoreEl.textContent = "Turn: Player X";
+  draw();
 }
 
-document.addEventListener('keydown', e => {
-  if (e.code === 'Space' || e.code === 'ArrowUp') jump();
+canvas.addEventListener('click', e => {
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+  handleInput(x, y);
 });
-canvas.addEventListener('mousedown', jump);
-canvas.addEventListener('touchstart', jump);
-
-function update() {
-  if (gameOver) return;
-
-  frame++;
-  if (frame % 90 === 0) spawnObstacle();
-  if (frame % 500 === 0) speed += 0.5;
-
-  player.vy += gravity;
-  player.y += player.vy;
-  if (player.y > groundY) {
-    player.y = groundY;
-    player.vy = 0;
-    player.jumping = false;
-  }
-
-  obstacles.forEach(o => o.x -= speed);
-  obstacles = obstacles.filter(o => o.x + o.w > 0);
-
-  obstacles.forEach(o => {
-    if (
-      player.x < o.x + o.w &&
-      player.x + player.w > o.x &&
-      player.y < o.y + o.h &&
-      player.y + player.h > o.y
-    ) {
-      gameOver = true;
-    }
-  });
-
-  score++;
-  scoreEl.textContent = "Score: " + Math.floor(score / 5);
-}
 
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  // ground
-  ctx.fillStyle = '#0f0';
-  ctx.fillRect(0, groundY + player.h, canvas.width, 4);
+  // Draw Grid
+  ctx.strokeStyle = '#0f0';
+  ctx.lineWidth = 4;
 
-  // player
-  ctx.fillStyle = '#0af';
-  ctx.fillRect(player.x, player.y, player.w, player.h);
+  for (let i = 1; i < 3; i++) {
+    // Vertical lines
+    ctx.beginPath();
+    ctx.moveTo(i * cellSize, 0);
+    ctx.lineTo(i * cellSize, canvas.height);
+    ctx.stroke();
 
-  // obstacles
-  ctx.fillStyle = '#f33';
-  obstacles.forEach(o => ctx.fillRect(o.x, o.y, o.w, o.h));
+    // Horizontal lines
+    ctx.beginPath();
+    ctx.moveTo(0, i * cellSize);
+    ctx.lineTo(canvas.width, i * cellSize);
+    ctx.stroke();
+  }
 
+  // Draw Marks (X and O)
+  board.forEach((cell, index) => {
+    if (!cell) return;
+
+    const row = Math.floor(index / 3);
+    const col = index % 3;
+    const x = col * cellSize + cellSize / 2;
+    const y = row * cellSize + cellSize / 2;
+
+    if (cell === 'X') {
+      ctx.strokeStyle = '#0af';
+      ctx.lineWidth = 6;
+      const offset = 25;
+      
+      ctx.beginPath();
+      ctx.moveTo(x - offset, y - offset);
+      ctx.lineTo(x + offset, y + offset);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(x + offset, y - offset);
+      ctx.lineTo(x - offset, y + offset);
+      ctx.stroke();
+    } else if (cell === 'O') {
+      ctx.strokeStyle = '#f33';
+      ctx.lineWidth = 6;
+      
+      ctx.beginPath();
+      ctx.arc(x, y, 25, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+  });
+
+  // Game Over Overlay
   if (gameOver) {
     ctx.fillStyle = 'rgba(0,0,0,0.6)';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
+
     ctx.fillStyle = '#fff';
-    ctx.font = '28px Arial';
+    ctx.font = '24px Arial';
     ctx.textAlign = 'center';
-    ctx.fillText('GAME OVER', canvas.width/2, canvas.height/2 - 10);
-    ctx.font = '16px Arial';
-    ctx.fillText('Click / tap / press space to restart', canvas.width/2, canvas.height/2 + 20);
+
+    if (winner === 'Draw') {
+      ctx.fillText("IT'S A DRAW!", canvas.width / 2, canvas.height / 2 - 10);
+    } else {
+      ctx.fillText(`PLAYER ${winner} WINS!`, canvas.width / 2, canvas.height / 2 - 10);
+    }
+
+    ctx.font = '14px Arial';
+    ctx.fillText('Click anywhere to play again', canvas.width / 2, canvas.height / 2 + 20);
   }
 }
 
-function loop() {
-  update();
-  draw();
-  requestAnimationFrame(loop);
-}
-loop();
+draw();
 </script>
 </body>
 </html>
