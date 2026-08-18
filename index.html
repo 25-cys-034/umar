@@ -11,9 +11,14 @@
     flex-direction:column;
     align-items:center;
     justify-content:center;
-    height:100vh;
+    min-height:100vh;
     font-family:Arial, sans-serif;
     color:#fff;
+  }
+  #player-info {
+    margin-bottom: 10px;
+    font-size: 16px;
+    color: #0af;
   }
   #score { margin-bottom:15px; font-size:24px; font-weight:bold; }
   canvas {
@@ -27,163 +32,256 @@
     font-size:16px;
     color:#aaa;
   }
+  /* Simple Modal for Name Setup */
+  #setup-modal {
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+  }
+  .modal-content {
+    background: #222;
+    border: 2px solid #0f0;
+    padding: 25px;
+    border-radius: 8px;
+    text-align: center;
+    width: 300px;
+  }
+  .modal-content h2 { margin-bottom: 15px; color: #0f0; }
+  .modal-content input {
+    width: 100%;
+    padding: 8px;
+    margin: 8px 0;
+    background: #111;
+    border: 1px solid #444;
+    color: #fff;
+    border-radius: 4px;
+  }
+  .modal-content button {
+    margin-top: 15px;
+    padding: 10px 20px;
+    background: #0f0;
+    color: #000;
+    font-weight: bold;
+    border: none;
+    cursor: pointer;
+    border-radius: 4px;
+  }
+  .modal-content button:hover { background: #0c0; }
 </style>
 </head>
 <body>
+
+  <!-- Name Entry Overlay -->
+  <div id="setup-modal">
+    <div class="modal-content">
+      <h2>Enter Player Names</h2>
+      <input type="text" id="playerX-input" placeholder="Player X Name" value="Player 1">
+      <input type="text" id="playerO-input" placeholder="Player O Name" value="Player 2">
+      <button onclick="startGame()">Start Game</button>
+    </div>
+  </div>
+
+  <div id="player-info"></div>
   <div id="score">Turn: Player X</div>
   <canvas id="game" width="300" height="300"></canvas>
   <div id="msg">Click on any empty cell to place your move.</div>
 
-<script>
-const canvas = document.getElementById('game');
-const ctx = canvas.getContext('2d');
-const scoreEl = document.getElementById('score');
+  <!-- Load data handler before main game logic -->
+  <script src="data.js"></script>
 
-const cellSize = 100;
-let board = Array(9).fill(null);
-let currentPlayer = 'X';
-let gameOver = false;
-let winner = null;
+  <script>
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+    const scoreEl = document.getElementById('score');
+    const playerInfoEl = document.getElementById('player-info');
 
-const winningCombos = [
-  [0, 1, 2], [3, 4, 5], [6, 7, 8], // Rows
-  [0, 3, 6], [1, 4, 7], [2, 5, 8], // Columns
-  [0, 4, 8], [2, 4, 6]             // Diagonals
-];
+    const cellSize = 100;
+    let board = Array(9).fill(null);
+    let currentPlayer = 'X';
+    let gameOver = false;
+    let winner = null;
 
-function checkWinner() {
-  for (let combo of winningCombos) {
-    const [a, b, c] = combo;
-    if (board[a] && board[a] === board[b] && board[a] === board[c]) {
-      return board[a];
+    let playerXName = "Player 1";
+    let playerOName = "Player 2";
+
+    const winningCombos = [
+      [0, 1, 2], [3, 4, 5], [6, 7, 8], // Rows
+      [0, 3, 6], [1, 4, 7], [2, 5, 8], // Columns
+      [0, 4, 8], [2, 4, 6]              // Diagonals
+    ];
+
+    function startGame() {
+      const nameX = document.getElementById('playerX-input').value.trim() || "Player 1";
+      const nameO = document.getElementById('playerO-input').value.trim() || "Player 2";
+
+      playerXName = nameX;
+      playerOName = nameO;
+
+      // Register or fetch user records
+      getOrCreatePlayer(playerXName);
+      getOrCreatePlayer(playerOName);
+
+      document.getElementById('setup-modal').style.display = 'none';
+      updatePlayerInfoDisplay();
+      restart();
     }
-  }
-  if (board.every(cell => cell !== null)) {
-    return 'Draw';
-  }
-  return null;
-}
 
-function handleInput(x, y) {
-  if (gameOver) {
-    restart();
-    return;
-  }
+    function updatePlayerInfoDisplay() {
+      const px = getOrCreatePlayer(playerXName);
+      const po = getOrCreatePlayer(playerOName);
+      playerInfoEl.innerHTML = `
+        <strong>${px.name} (X):</strong> ${px.wins}W / ${px.losses}L / ${px.draws}D &nbsp;|&nbsp; 
+        <strong>${po.name} (O):</strong> ${po.wins}W / ${po.losses}L / ${po.draws}D
+      `;
+    }
 
-  const col = Math.floor(x / cellSize);
-  const row = Math.floor(y / cellSize);
-  const index = row * 3 + col;
-
-  if (board[index] === null) {
-    board[index] = currentPlayer;
-    winner = checkWinner();
-
-    if (winner) {
-      gameOver = true;
-      if (winner === 'Draw') {
-        scoreEl.textContent = "It's a Draw!";
-      } else {
-        scoreEl.textContent = `Player ${winner} Wins!`;
+    function checkWinner() {
+      for (let combo of winningCombos) {
+        const [a, b, c] = combo;
+        if (board[a] && board[a] === board[b] && board[a] === board[c]) {
+          return board[a];
+        }
       }
-    } else {
-      currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
-      scoreEl.textContent = `Turn: Player ${currentPlayer}`;
+      if (board.every(cell => cell !== null)) {
+        return 'Draw';
+      }
+      return null;
     }
+
+    function handleInput(x, y) {
+      if (gameOver) {
+        restart();
+        return;
+      }
+
+      const col = Math.floor(x / cellSize);
+      const row = Math.floor(y / cellSize);
+      const index = row * 3 + col;
+
+      if (board[index] === null) {
+        board[index] = currentPlayer;
+        winner = checkWinner();
+
+        if (winner) {
+          gameOver = true;
+          if (winner === 'Draw') {
+            scoreEl.textContent = "It's a Draw!";
+            updatePlayerScore(playerXName, 'draws');
+            updatePlayerScore(playerOName, 'draws');
+          } else {
+            const winningName = winner === 'X' ? playerXName : playerOName;
+            const losingName = winner === 'X' ? playerOName : playerXName;
+
+            scoreEl.textContent = `${winningName} Wins!`;
+            updatePlayerScore(winningName, 'wins');
+            updatePlayerScore(losingName, 'losses');
+          }
+          updatePlayerInfoDisplay();
+        } else {
+          currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
+          const activeName = currentPlayer === 'X' ? playerXName : playerOName;
+          scoreEl.textContent = `Turn: ${activeName} (${currentPlayer})`;
+        }
+        draw();
+      }
+    }
+
+    function restart() {
+      board = Array(9).fill(null);
+      currentPlayer = 'X';
+      gameOver = false;
+      winner = null;
+      scoreEl.textContent = `Turn: ${playerXName} (X)`;
+      draw();
+    }
+
+    canvas.addEventListener('click', e => {
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      handleInput(x, y);
+    });
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Draw Grid
+      ctx.strokeStyle = '#0f0';
+      ctx.lineWidth = 4;
+
+      for (let i = 1; i < 3; i++) {
+        // Vertical lines
+        ctx.beginPath();
+        ctx.moveTo(i * cellSize, 0);
+        ctx.lineTo(i * cellSize, canvas.height);
+        ctx.stroke();
+
+        // Horizontal lines
+        ctx.beginPath();
+        ctx.moveTo(0, i * cellSize);
+        ctx.lineTo(canvas.width, i * cellSize);
+        ctx.stroke();
+      }
+
+      // Draw Marks (X and O)
+      board.forEach((cell, index) => {
+        if (!cell) return;
+
+        const row = Math.floor(index / 3);
+        const col = index % 3;
+        const x = col * cellSize + cellSize / 2;
+        const y = row * cellSize + cellSize / 2;
+
+        if (cell === 'X') {
+          ctx.strokeStyle = '#0af';
+          ctx.lineWidth = 6;
+          const offset = 25;
+          
+          ctx.beginPath();
+          ctx.moveTo(x - offset, y - offset);
+          ctx.lineTo(x + offset, y + offset);
+          ctx.stroke();
+
+          ctx.beginPath();
+          ctx.moveTo(x + offset, y - offset);
+          ctx.lineTo(x - offset, y + offset);
+          ctx.stroke();
+        } else if (cell === 'O') {
+          ctx.strokeStyle = '#f33';
+          ctx.lineWidth = 6;
+          
+          ctx.beginPath();
+          ctx.arc(x, y, 25, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+      });
+
+      // Game Over Overlay
+      if (gameOver) {
+        ctx.fillStyle = 'rgba(0,0,0,0.6)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.fillStyle = '#fff';
+        ctx.font = '20px Arial';
+        ctx.textAlign = 'center';
+
+        if (winner === 'Draw') {
+          ctx.fillText("IT'S A DRAW!", canvas.width / 2, canvas.height / 2 - 10);
+        } else {
+          const winningName = winner === 'X' ? playerXName : playerOName;
+          ctx.fillText(`${winningName.toUpperCase()} WINS!`, canvas.width / 2, canvas.height / 2 - 10);
+        }
+
+        ctx.font = '14px Arial';
+        ctx.fillText('Click anywhere to play again', canvas.width / 2, canvas.height / 2 + 20);
+      }
+    }
+
     draw();
-  }
-}
-
-function restart() {
-  board = Array(9).fill(null);
-  currentPlayer = 'X';
-  gameOver = false;
-  winner = null;
-  scoreEl.textContent = "Turn: Player X";
-  draw();
-}
-
-canvas.addEventListener('click', e => {
-  const rect = canvas.getBoundingClientRect();
-  const x = e.clientX - rect.left;
-  const y = e.clientY - rect.top;
-  handleInput(x, y);
-});
-
-function draw() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  // Draw Grid
-  ctx.strokeStyle = '#0f0';
-  ctx.lineWidth = 4;
-
-  for (let i = 1; i < 3; i++) {
-    // Vertical lines
-    ctx.beginPath();
-    ctx.moveTo(i * cellSize, 0);
-    ctx.lineTo(i * cellSize, canvas.height);
-    ctx.stroke();
-
-    // Horizontal lines
-    ctx.beginPath();
-    ctx.moveTo(0, i * cellSize);
-    ctx.lineTo(canvas.width, i * cellSize);
-    ctx.stroke();
-  }
-
-  // Draw Marks (X and O)
-  board.forEach((cell, index) => {
-    if (!cell) return;
-
-    const row = Math.floor(index / 3);
-    const col = index % 3;
-    const x = col * cellSize + cellSize / 2;
-    const y = row * cellSize + cellSize / 2;
-
-    if (cell === 'X') {
-      ctx.strokeStyle = '#0af';
-      ctx.lineWidth = 6;
-      const offset = 25;
-      
-      ctx.beginPath();
-      ctx.moveTo(x - offset, y - offset);
-      ctx.lineTo(x + offset, y + offset);
-      ctx.stroke();
-
-      ctx.beginPath();
-      ctx.moveTo(x + offset, y - offset);
-      ctx.lineTo(x - offset, y + offset);
-      ctx.stroke();
-    } else if (cell === 'O') {
-      ctx.strokeStyle = '#f33';
-      ctx.lineWidth = 6;
-      
-      ctx.beginPath();
-      ctx.arc(x, y, 25, 0, Math.PI * 2);
-      ctx.stroke();
-    }
-  });
-
-  // Game Over Overlay
-  if (gameOver) {
-    ctx.fillStyle = 'rgba(0,0,0,0.6)';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    ctx.fillStyle = '#fff';
-    ctx.font = '24px Arial';
-    ctx.textAlign = 'center';
-
-    if (winner === 'Draw') {
-      ctx.fillText("IT'S A DRAW!", canvas.width / 2, canvas.height / 2 - 10);
-    } else {
-      ctx.fillText(`PLAYER ${winner} WINS!`, canvas.width / 2, canvas.height / 2 - 10);
-    }
-
-    ctx.font = '14px Arial';
-    ctx.fillText('Click anywhere to play again', canvas.width / 2, canvas.height / 2 + 20);
-  }
-}
-
-draw();
-</script>
+  </script>
 </body>
 </html>
